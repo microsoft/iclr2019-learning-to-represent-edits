@@ -1,14 +1,18 @@
-# Project
+# Learning to Represnt Edits
 
-> This repo has been populated by an initial template to help get you started. Please
-> make sure to update the content to build a great experience for community-building.
+This is the code for the ICLR 2019 paper "[Learning to Represent Edits](https://arxiv.org/abs/1810.13337)".
 
-As the maintainer of this project, please make a few updates:
+Training scripts can be found in the [`scripts`](scripts/) folder.
 
-- Improving this README.MD file to provide a great experience
-- Updating SUPPORT.MD with content about this project's support experience
-- Understanding the security reporting process in SECURITY.MD
-- Remove this section from the README
+Cite as
+```
+@inproceedings{yin2018learning,
+  title={Learning to Represent Edits},
+  author={Yin, Pengcheng and Neubig, Graham and Allamanis, Miltiadis and Brockschmidt, Marc and Gaunt, Alexander L},
+  booktitle={International Conference on Learning Representations},
+  year={2018}
+}
+```
 
 ## Contributing
 
