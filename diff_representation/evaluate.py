@@ -17,8 +17,8 @@ def evaluate_nll(model, test_set, batch_size=32, return_nll_list=False):
 
     with torch.no_grad():
         for batch_examples in test_set.batch_iter(batch_size):
-            log_probs = -model(batch_examples)
-            batch_code_tokens_num = torch.tensor([len(e.updated_code_chunk) for e in batch_examples],
+            log_probs = -model(batch_examples)['log_probs']
+            batch_code_tokens_num = torch.tensor([len(e.updated_data) for e in batch_examples],
                                                  dtype=torch.float,
                                                  device=log_probs.device)
 

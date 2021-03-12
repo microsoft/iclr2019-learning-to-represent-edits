@@ -19,10 +19,10 @@ import os, sys
 import json
 from collections import OrderedDict
 
-from dpu_utils.utils import load_json_gz
 from git import *
 from docopt import docopt
 
+from utils.dataloading import load_json_gz
 from mining.change_detection import detect_contiguous_change, is_valid_change
 from visualization.datasetviz import print_related_diff
 
@@ -136,6 +136,7 @@ def extract_revision_from_repos(args):
                             updated_file_content = updated_file_content.decode("utf-8", errors="ignore")
 
                         if prev_file_content and updated_file_content and prev_file_content != updated_file_content:
+
                             revision_id = '|'.join([repo_folder, str(commit.hexsha), diff_modified.a_blob.path])
 
                             print('\t writing one revision [%s]' % revision_id, file=sys.stderr)

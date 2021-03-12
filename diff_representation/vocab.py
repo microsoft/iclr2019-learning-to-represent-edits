@@ -16,8 +16,6 @@ from itertools import chain
 from docopt import docopt
 import json
 
-from diff_representation.dataset import DataSet
-
 
 class VocabEntry:
     def __init__(self):
@@ -116,6 +114,8 @@ class Vocab(object):
 
 
 if __name__ == '__main__':
+    from diff_representation.dataset import DataSet
+
     args = docopt(__doc__)
     train_set = DataSet.load_from_jsonl(args['TRAIN_FILE'])
     corpus = [change.previous_code_chunk + change.updated_code_chunk + change.context for change in train_set]

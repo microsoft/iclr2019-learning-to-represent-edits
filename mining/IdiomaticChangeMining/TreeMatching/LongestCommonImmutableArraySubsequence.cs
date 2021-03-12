@@ -1,11 +1,12 @@
 ﻿// Copyright (c) Microsoft Corporation.
-// Licensed under the MIT license.
+// Licensed under the MIT license
 
 using Microsoft.CodeAnalysis.Differencing;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Text;
 
 namespace IdiomaticChangeMining
 {

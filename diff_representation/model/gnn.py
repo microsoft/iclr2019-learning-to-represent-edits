@@ -39,7 +39,7 @@ class GatedGraphNeuralNetwork(nn.Module):
         self.hidden_size = hidden_size
         self.num_edge_types = num_edge_types
         self.layer_timesteps = layer_timesteps
-        self.residual_connections = residual_connections
+        self.residual_connections = {int(k): v for k, v in residual_connections.items()}
         self.state_to_message_dropout = state_to_message_dropout
         self.rnn_dropout = rnn_dropout
         self.use_bias_for_message_linear = use_bias_for_message_linear

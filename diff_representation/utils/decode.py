@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+
 """Neural Representations of code revisions
 
 Usage:
@@ -16,7 +17,7 @@ Options:
     --cuda                                  Use gpu
 """
 
-from diff_representation.model.autoencoder import *
+from diff_representation.model.editor import *
 from diff_representation.dataset import *
 from diff_representation.asdl.transition_system import *
 from diff_representation.asdl.grammar import ASDLGrammar

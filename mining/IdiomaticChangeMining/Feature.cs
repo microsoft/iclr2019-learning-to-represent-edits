@@ -30,7 +30,7 @@ namespace IdiomaticChangeMining
 
         }
 
-        public override string ToString()
+        public string ToString()
         {
             return $"Feature[Removed: {String.Join(", ", RemovedTokens)} ||| Added: {String.Join(", ", AddedTokens)} ||| Common: {String.Join(", ", CommonTokens)}]";
         }

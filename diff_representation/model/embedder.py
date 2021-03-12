@@ -74,6 +74,9 @@ class CodeTokenEmbedder(Embedder, nn.Embedding):
 
         embedding_table.init_with_embeddings(token_embedding)
 
+    def get_embed_for_token_sequences(self, sequences):
+        return self.forward(sequences)
+
 
 class ConvolutionalCharacterEmbedder(nn.Module, Embedder):
     def __init__(self, embed_size: int, max_character_size):
@@ -137,7 +140,7 @@ class EmbeddingTable:
         return embed
 
     def init_with_embeddings(self, embedding_tensor):
-        # input: (word_num, embedding_size)
+        # input: (word_num, token_embedding_size)
         self.embedding = embedding_tensor
 
     def to_input_variable(self, sequences, return_mask=False):

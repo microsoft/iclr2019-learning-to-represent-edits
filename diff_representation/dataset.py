@@ -12,8 +12,10 @@ from torch.multiprocessing import Manager, Process, Queue
 
 from diff_representation.asdl.transition_system.hypothesis import *
 from diff_representation.asdl.transition_system.transition import TransitionSystem
-from diff_representation.model.sequential_change_encoder import SequentialChangeEncoder
-from diff_representation.model.sequential_decoder import SequentialDecoder
+from diff_representation.common.config import Arguments
+
+from diff_representation.model.edit_encoder import SequentialChangeEncoder, GraphChangeEncoder, BagOfEditsChangeEncoder
+from diff_representation.model.encdec import *
 from .change_entry import ChangeExample
 from .utils.utils import *
 
@@ -22,49 +24,43 @@ def _encode(word_list):
     return [w.replace('\n', '-NEWLINE-') for w in word_list]
 
 
-def load_one_change_entry(json_str, type, transition_system, debug=False, copy_identifier=True,
-                          annotate_tree_change=False, tensorization=True, vocab=None, no_copy=False):
+_transition_system = None
+_vocab = None
+_args = None
+
+
+def load_one_change_entry(json_str, editor_type='seq2seq', edit_encoder_type='seq', tensorization=True, debug=False):
+    from diff_representation.model.editor import Seq2SeqEditor, Graph2TreeEditor
+
     entry = json.loads(json_str)
     previous_code_chunk = _encode(entry['PrevCodeChunkTokens'])
     updated_code_chunk = _encode(entry['UpdatedCodeChunkTokens'])
     context = _encode(entry['PrecedingContext'] + ['|||'] + entry['SucceedingContext'])
 
-    if type == 'sequential':
+    if editor_type == 'seq2seq':
         example = ChangeExample(id=entry['Id'],
-                                previous_code_chunk=previous_code_chunk,
-                                updated_code_chunk=updated_code_chunk,
-                                untokenized_previous_code_chunk=entry['PrevCodeChunk'],
-                                untokenized_updated_code_chunk=entry['UpdatedCodeChunk'],
+                                prev_data=previous_code_chunk,
+                                updated_data=updated_code_chunk,
+                                raw_prev_data=entry['PrevCodeChunk'],
+                                raw_updated_data=entry['UpdatedCodeChunk'],
                                 context=context)
 
         # preform tensorization
         if tensorization:
             SequentialChangeEncoder.populate_aligned_token_index_and_mask(example)
-            SequentialDecoder.populate_gen_and_copy_index_and_mask(example, vocab, no_copy=no_copy)
-    elif type == 'tree2seq':
-        updated_code_ast_json = entry['UpdatedCodeAST']
-        updated_code_ast = transition_system.grammar.get_ast_from_json_obj(updated_code_ast_json)
-        prev_code_ast_json = entry['PrevCodeAST']
-        prev_code_ast = transition_system.grammar.get_ast_from_json_obj(prev_code_ast_json)
-
-        example = ChangeExample(id=entry['Id'],
-                                previous_code_chunk=previous_code_chunk,
-                                updated_code_chunk=updated_code_chunk,
-                                untokenized_previous_code_chunk=entry['PrevCodeChunk'],
-                                untokenized_updated_code_chunk=entry['UpdatedCodeChunk'],
-                                context=context,
-                                prev_code_ast=prev_code_ast,
-                                updated_code_ast=updated_code_ast)
-    elif type in ('seq2tree', 'tree2tree', 'tree2tree_subtree_copy'):
-        updated_code_ast_json = entry['UpdatedCodeAST']
-        updated_code_ast = transition_system.grammar.get_ast_from_json_obj(updated_code_ast_json)
+            SequentialDecoder.populate_gen_and_copy_index_and_mask(example, _vocab, copy_token=_args['decoder']['copy_token'])
+    elif editor_type == 'graph2tree':
+        transition_system = _transition_system
 
         prev_code_ast_json = entry['PrevCodeAST']
         prev_code_ast = transition_system.grammar.get_ast_from_json_obj(prev_code_ast_json)
+
+        updated_code_ast_json = entry['UpdatedCodeAST']
+        updated_code_ast = transition_system.grammar.get_ast_from_json_obj(updated_code_ast_json)
 
         tgt_actions = transition_system.get_decoding_actions(target_ast=updated_code_ast,
-                                                             prev_ast=prev_code_ast if type == 'tree2tree_subtree_copy' else None,
-                                                             copy_identifier=copy_identifier)
+                                                             prev_ast=prev_code_ast,
+                                                             copy_identifier=_args['decoder']['copy_identifier_node'])
 
         if debug:
             action_paths = [tgt_actions]
@@ -88,23 +84,24 @@ def load_one_change_entry(json_str, type, transition_system, debug=False, copy_i
                 assert hyp.tree == updated_code_ast.root_node
                 assert hyp.completed
 
+            # log action sequence
+
         example = ChangeExample(id=entry['Id'],
-                                previous_code_chunk=previous_code_chunk,
-                                updated_code_chunk=updated_code_chunk,
-                                untokenized_previous_code_chunk=entry['PrevCodeChunk'],
-                                untokenized_updated_code_chunk=entry['UpdatedCodeChunk'],
+                                prev_data=previous_code_chunk,
+                                updated_data=updated_code_chunk,
+                                raw_prev_data=entry['PrevCodeChunk'],
+                                raw_updated_data=entry['UpdatedCodeChunk'],
                                 context=context,
                                 prev_code_ast=prev_code_ast,
                                 updated_code_ast=updated_code_ast,
                                 tgt_actions=tgt_actions)
 
-        if annotate_tree_change:
-            from diff_representation.model.graph_change_encoder import GraphChangeEncoder
-            example.change_edges = GraphChangeEncoder.compute_change_edges(example)
-
         # preform tensorization
         if tensorization:
-            SequentialChangeEncoder.populate_aligned_token_index_and_mask(example)
+            if edit_encoder_type == 'sequential':
+                SequentialChangeEncoder.populate_aligned_token_index_and_mask(example)
+            elif edit_encoder_type == 'graph':
+                example.change_edges = GraphChangeEncoder.compute_change_edges(example)
     else:
         raise ValueError('unknown dataset type')
 
@@ -256,9 +253,30 @@ class DataSet:
         return self.examples[idx]
 
     @staticmethod
-    def load_from_jsonl(file_path, type='sequential', transition_system: TransitionSystem=None,
-                        parallel=True, from_ipython=False, max_workers=None, debug=False, copy_identifier=True,
-                        annotate_tree_change=False, tensorization=True, vocab=None, no_copy=False):
+    def load_from_jsonl(file_path, editor=None,
+                        editor_type=None, edit_encoder_type=None, args=None, vocab=None, transition_system=None,
+                        tensorization=True, from_ipython=False, max_workers=1, debug=False):
+
+        from diff_representation.model.editor import Seq2SeqEditor, Graph2TreeEditor
+
+        if editor:
+            if isinstance(editor, Seq2SeqEditor):
+                editor_type = 'seq2seq'
+            elif isinstance(editor, Graph2TreeEditor):
+                editor_type = 'graph2tree'
+
+            if isinstance(editor.edit_encoder, SequentialChangeEncoder):
+                edit_encoder_type = 'sequential'
+            elif isinstance(editor.edit_encoder, GraphChangeEncoder):
+                edit_encoder_type = 'graph'
+            elif isinstance(editor.edit_encoder, BagOfEditsChangeEncoder):
+                edit_encoder_type = 'bag'
+
+            if hasattr(editor, 'transition_system'):
+                transition_system = editor.transition_system
+            vocab = editor.vocab
+            args = editor.args
+
         examples = []
         with open(file_path) as f:
             print('reading all lines from the dataset', file=sys.stderr)
@@ -272,29 +290,33 @@ class DataSet:
                 from tqdm import tqdm
                 iter_log_func = partial(tqdm, total=len(all_lines), desc='loading dataset', file=sys.stdout)
 
-            if parallel:
+            global _args, _vocab, _transition_system
+            _args = args
+            _vocab = vocab
+            _transition_system = transition_system
+
+            if max_workers > 1:
+                print('Parallel data loading...', file=sys.stderr)
                 with multiprocessing.Pool(max_workers) as pool:
-                    processed_examples = pool.imap(partial(load_one_change_entry, type=type, transition_system=transition_system,
-                                                           debug=debug, copy_identifier=copy_identifier,
-                                                           annotate_tree_change=annotate_tree_change,
-                                                           tensorization=tensorization, vocab=vocab, no_copy=no_copy),
+                    processed_examples = pool.imap(partial(load_one_change_entry,
+                                                           editor_type=editor_type,
+                                                           edit_encoder_type=edit_encoder_type,
+                                                           tensorization=tensorization),
                                                    iterable=all_lines,
                                                    chunksize=5000)
                     for example in iter_log_func(processed_examples):
                         examples.append(example)
             else:
                 for line in iter_log_func(all_lines):
-                    example = load_one_change_entry(line, type, transition_system, debug=debug,
-                                                    copy_identifier=copy_identifier,
-                                                    annotate_tree_change=annotate_tree_change,
-                                                    tensorization=tensorization,
-                                                    vocab=vocab,
-                                                    no_copy=no_copy)
+                    example = load_one_change_entry(line,
+                                                    editor_type=editor_type,
+                                                    edit_encoder_type=edit_encoder_type,
+                                                    tensorization=tensorization)
                     examples.append(example)
 
         data_set = DataSet([e for e in examples if e])
 
-        if type == 'tree':
-            print('average action length: %.2f' % np.average([len(e.tgt_actions) for e in data_set.examples]), file=sys.stderr)
+        # if type == 'tree':
+        #     print('average action length: %.2f' % np.average([len(e.tgt_actions) for e in data_set.examples]), file=sys.stderr)
 
         return data_set

@@ -1,9 +1,15 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import re
 from difflib import SequenceMatcher
-from typing import List
+from typing import List, Dict, Set, Sequence, Tuple, Union
+import re
+from collections import namedtuple
+
+from docopt import docopt
+
+from utils.dataloading import load_json_gz
+
 
 DIFF_OP_RE = re.compile(r'(equal,)?replace(,equal)?')
 
@@ -23,4 +29,4 @@ def detect_contiguous_change(prev_code_chunk:List[str], updated_code_chunk:List[
 
 
 def is_valid_change(change):
-    return change['prev_code_chunk'].strip() != change['updated_code_chunk'].strip()
+    return change['prev_code_chunk'].strip() != change['updated_data'].strip()

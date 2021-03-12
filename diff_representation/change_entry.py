@@ -8,23 +8,22 @@ from diff_representation.diff_utils import TokenLevelDiffer
 
 
 class ChangeExample:
-    def __init__(self, previous_code_chunk: List[str], updated_code_chunk: List[str],
-                 context: List[str],
-                 untokenized_previous_code_chunk: str=None, untokenized_updated_code_chunk: str=None,
+    def __init__(self, prev_data: List[str], updated_data: List[str], context: List[str],
+                 raw_prev_data: str=None, raw_updated_data: str=None,
                  id: str='default_id', **kwargs):
         self.id = id
 
-        self.previous_code_chunk = previous_code_chunk
-        self.updated_code_chunk = updated_code_chunk
+        self.prev_data = prev_data
+        self.updated_data = updated_data
 
-        self.untokenized_previous_code_chunk = untokenized_previous_code_chunk
-        self.untokenized_updated_code_chunk = untokenized_updated_code_chunk
+        self.raw_prev_data = raw_prev_data
+        self.raw_updated_data = raw_updated_data
 
         self.context = context
 
         diff_hunk = '\n'.join(list(x.strip('\n') if x.startswith('@') else x
-                                   for x in difflib.unified_diff(a=previous_code_chunk, b=updated_code_chunk,
-                                                                 n=len(self.previous_code_chunk) + len(self.updated_code_chunk),
+                                   for x in difflib.unified_diff(a=prev_data, b=updated_data,
+                                                                 n=len(self.prev_data) + len(self.updated_data),
                                                                  lineterm=''))[2:])
         self.diff_hunk = diff_hunk
 
@@ -43,7 +42,7 @@ class ChangeExample:
                 tag = 'SAME'
                 token = same
 
-                assert self.previous_code_chunk[prev_token_ptr] == self.updated_code_chunk[updated_token_ptr] == token
+                assert self.prev_data[prev_token_ptr] == self.updated_data[updated_token_ptr] == token
 
                 prev_token_ptr += 1
                 updated_token_ptr += 1
@@ -51,8 +50,8 @@ class ChangeExample:
                 tag = 'REPLACE'
                 token = (removed, added)
 
-                assert self.previous_code_chunk[prev_token_ptr] == removed
-                assert self.updated_code_chunk[updated_token_ptr] == added
+                assert self.prev_data[prev_token_ptr] == removed
+                assert self.updated_data[updated_token_ptr] == added
 
                 prev_token_ptr += 1
                 updated_token_ptr += 1
@@ -60,14 +59,14 @@ class ChangeExample:
                 tag = 'ADD'
                 token = added
 
-                assert self.updated_code_chunk[updated_token_ptr] == added
+                assert self.updated_data[updated_token_ptr] == added
 
                 updated_token_ptr += 1
             elif added is None and removed is not None:
                 tag = 'DEL'
                 token = removed
 
-                assert self.previous_code_chunk[prev_token_ptr] == removed
+                assert self.prev_data[prev_token_ptr] == removed
 
                 prev_token_ptr += 1
             else:
